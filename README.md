@@ -53,5 +53,5 @@ $ ./biliExport.sh
 # 将av号为98298107的视频导出为avi文件
 $ ./biliExport.sh -i 98298107 -f avi
 # 将av号为98298107和12490060的视频导出为flv文件,并把分辨率设置为320x240
-$ ./biliExport.sh -i 98298107,12490060 -f flv -s 320x240
+$ ./biliExport.sh -i 98298107,12490060 -f flv -c h264 -s 320x240
 ```
