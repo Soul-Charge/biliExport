@@ -1,29 +1,104 @@
 #!/bin/bash
-# bilExport.sh
-# version 1.0.1
-# 修改-h信息
+# bilExport.sh by Soul-Charge
+# version:1.1.0
+# 添加关键字处理支持
+# 2020/7/22
+
+#######函数分割线#######
+# 处理*.m4s
+dealM4s(){
+    m4sDir="$entryDir""$videoDir"
+    if [ -e "$m4sDir"audio.m4s ]; then
+        echo "生成:"$outName
+        echo "额外参数：-------"
+        echo $codec
+        echo $WxH
+        echo "----------------"
+        # TODO ffmpeg 加入参数曾经的尝试
+        #ffmpeg $coverConfirm -i $m4sDiraudio".m4s" -i $m4sDirvideo".m4s" -acodec copy "$codec""$audioOnly""$WxH" ./"$outName"
+        if [ $coverConfirm == 1 ];
+        then
+            ffmpeg -y -i "$m4sDir""audio.m4s" -i "$m4sDir""video.m4s" -vcodec "$codec" -acodec copy -s "$WxH" "./""$outName"
+        elif [ -n "$key" -a $coverConfirm == 1 ]; then
+            ffmpeg -y -i "$m4sDir""audio.m4s" -i "$m4sDir""video.m4s" -vcodec "$codec" -acodec copy -s "$WxH" "./$key/""$outName"
+        elif [ -n "$key" ]; then
+            ffmpeg -i "$m4sDir""audio.m4s" -i "$m4sDir""video.m4s" -vcodec "$codec" -acodec copy -s "$WxH" "./$key/""$outName"
+        else # $coverConfirm == 0
+            ffmpeg -i "$m4sDir""audio.m4s" -i "$m4sDir""video.m4s" -vcodec "$codec" -acodec copy -s "$WxH" "./""$outName"
+        fi
+    fi
+}
+# 处理*.blv
+dealBlv(){
+    # 获取blv文件名列表
+    blvs=`ls "$entryDir""$videoDir" | egrep '.*\.blv' -o`
+    # 设置IFS用于读取blv文件列表
+    # blv所在目录路径
+    blvDir="$entryDir""$videoDir"
+    IFS=" 
+    "
+    for j in $blvs; do
+        # blv的路径
+        blvPath="$blvDir""$j"
+        # 将blv文件列表写入临时文件用于之后的视频拼接
+        echo "file ""'""$blvPath""'" >> ./fileList.txt
+    done
+    if [ -f ./fileList.txt ];then
+        echo "生成:"$outName
+        echo "额外参数：-------"
+        echo $codec
+        echo $WxH
+        echo "----------------"
+        echo "处理blv列表:======"
+        cat ./fileList.txt
+        echo "=================="
+        # TODO ffmpeg 加入参数曾经的尝试
+        # 输出文件名用引号包围防止因为视频名有空格导致被当成别的文件名
+        # ffmpeg $coverConfirm -f concat -safe 0 -i ./fileList.txt -acodec copy "$codec""$audioOnly""$WxH"" ./""$outName"
+        if [ $coverConfirm == 1 ];
+        then
+            ffmpeg -y -f concat -safe 0 -i ./fileList.txt -vcodec "$codec" -acodec copy -s "$WxH" "./""$outName"
+        elif [ -n "$key" -a $coverConfirm == 1 ]; then
+            ffmpeg -y -f concat -safe 0 -i ./fileList.txt -vcodec "$codec" -acodec copy -s "$WxH" "./$key/""$outName"
+        elif [ -n "$key" ]; then
+            ffmpeg -f concat -safe 0 -i ./fileList.txt -vcodec "$codec" -acodec copy -s "$WxH" "./$key/""$outName"
+        else # $coverConfirm == 0
+            ffmpeg -f concat -safe 0 -i ./fileList.txt -vcodec "$codec" -acodec copy -s "$WxH" "./""$outName"
+        fi
+        # 清理临时文件
+        rm ./fileList.txt
+    fi
+    # outName被处理一次就清空，使其在关键字遍历中只能被处理一次
+    outName=""
+}
+#######函数分割线#######
 
 # TODO 提取音频功能
+# TODO 文件名除重复
 # 处理选项参数
 function usage() {
     echo "将此文件放入bilibili缓存的目录(download/)下运行,文件将生成于此目录"
     echo "Usage: $0 [-h] [-v] [-y] [-i <avNum>] "
     echo "    [-s <WxH>] [-c <codec>] [-f <outform>]"
+    echo "    [-k <keyword>]"
     echo "    -h 显示帮助信息"
     echo "    -v 显示版本信息"
     echo "    -i 指定av号(纯数字,多个用逗号分隔,不能有空格)"
     echo "         例: $0 -i 88888"
     echo "         例2:$0 -i 84745697,90424787"
     echo "    -y 自动确认覆盖生成过的文件(重复生成可能会用)"
-    echo "    -s 指定分辨率,需要同时设置-c"
+    echo "    -s 指定分辨率,需要设置-c"
     echo "         例：$0 -c h264 -s 320x240"
     echo "    -c 指定视频编解码器"
     echo "         例：$0 -c h264"
     echo "    -f 指定输出格式,默认mp4"
     echo "         例：$0 -f avi"
+    echo "    -k 处理标题含有关键字的文件,多个用逗号分隔，不能有空格"
+    echo "         例：$0 -k 音效"
+    echo "         例2：$0 -k 音效,MMD"
 }
 
-while getopts "hvi:s:c:f:y" opt
+while getopts "hvi:s:c:f:yk:" opt
 do
     case "$opt" in
     h)
@@ -31,7 +106,7 @@ do
         exit 0
     ;;
     v)
-        echo version: 1.0.1
+        echo version: 1.1.0
         exit 0
     ;;
     i)
@@ -52,6 +127,9 @@ do
     f)
         # 设置输出文件格式
         format=$OPTARG
+    ;;
+    k)
+        keyWord=$OPTARG
     ;;
     ?)
         # 遇到位置参数打印帮助内容
@@ -100,6 +178,13 @@ else
     echo "设置输出格式为:$format(默认)"
 fi
 
+if [ ! -z "$keyWord" ];
+then
+    echo 设置关键字为:$keyWord
+else
+    echo 未设置关键字
+fi
+
 # 备份IFS的值并设置为换行符
 old_IFS="$IFS"
 IFS=$"
@@ -125,71 +210,38 @@ for i in $entryPaths; do
 	title=`jq .title "$i"`
 	part=`jq .page_data.part "$i"`
     echo "正在处理："
-    echo $title
-    echo $part
+    echo "-------------------"
+    echo "标题     :$title"
+    echo "分p子标题:$part"
+    echo "-------------------"
 	# 每个entry.json的目录
 	entryDir=${i//"entry.json"/}
 	# 每个分p的视频目录名+'/'
 	videoDir=`ls -F $entryDir | egrep '/$'`
     # 输出文件名
     outName="${title//\"/}""-""${part//\"/}"".""$format"
-
-    # 处理.m4s
-    m4sDir="$entryDir""$videoDir"
-    if [ -e "$m4sDir"audio.m4s ]; then
-        echo "生成:"$outName
-        echo "额外参数：-------"
-        echo $codec
-        echo $WxH
-        echo "----------------"
-        # TODO ffmpeg 加入参数曾经的尝试
-        #ffmpeg $coverConfirm -i $m4sDiraudio".m4s" -i $m4sDirvideo".m4s" -acodec copy "$codec""$audioOnly""$WxH" ./"$outName"
-        if [ $coverConfirm == 1 ];
-        then
-            ffmpeg -y -i "$m4sDir""audio.m4s" -i "$m4sDir""video.m4s" -vcodec "$codec" -acodec copy -s "$WxH" "./""$outName"
-        else # $coverConfirm == 0
-            ffmpeg -i "$m4sDir""audio.m4s" -i "$m4sDir""video.m4s" -vcodec "$codec" -acodec copy -s "$WxH" "./""$outName"
-        fi
+    # 检测关键字选择性处理
+    IFS="," # 先把分隔符设置成逗号才能进行下面的遍历
+    if [ -n "$keyWord" ]; then
+        for key in $keyWord; do
+            if [ -n "$key" -a -n "$outName" -a -n "`echo $outName | egrep $key`" ]; then # 关键字非空并可在文件名中找到
+                # 创建分类文件夹
+                mkdir "./$key"
+                # 处理.m4s
+                dealM4s
+                # 处理.blv
+                dealBlv
+            fi
+            # 设置IFS为逗号，以防无法进行下一次关键字列表读取
+            IFS=","
+        done
+    else # 没有设置关键字则常规处理
+        dealM4s
+        dealBlv
     fi
-
-	# 处理.blv
-		# 获取blv文件名列表
-	blvs=`ls "$entryDir""$videoDir" | egrep '.*\.blv' -o`
-		# 设置IFS用于读取blv文件列表
-		# blv所在目录路径
-	blvDir="$entryDir""$videoDir"
-	IFS=" 
-	"
-	for j in $blvs; do
-		# blv的路径
-		blvPath="$blvDir""$j"
-        # 将blv文件列表写入临时文件用于之后的视频拼接
-		echo "file ""'""$blvPath""'" >> ./fileList.txt
-	done
-
-	if [ -f ./fileList.txt ];then
-        echo "生成:"$outName
-        echo "额外参数：-------"
-        echo $codec
-        echo $WxH
-        echo "----------------"
-        echo "处理blv列表:======"
-        cat ./fileList.txt
-        echo "=================="
-        # TODO ffmpeg 加入参数曾经的尝试
-        # 输出文件名用引号包围防止因为视频名有空格导致被当成别的文件名
-		# ffmpeg $coverConfirm -f concat -safe 0 -i ./fileList.txt -acodec copy "$codec""$audioOnly""$WxH"" ./""$outName"
-        if [ $coverConfirm == 1 ];
-        then
-            ffmpeg -y -f concat -safe 0 -i ./fileList.txt -vcodec "$codec" -acodec copy -s "$WxH" "./""$outName"
-        else # $coverConfirm == 0
-            ffmpeg -f concat -safe 0 -i ./fileList.txt -vcodec "$codec" -acodec copy -s "$WxH" "./""$outName"
-        fi
-        # 清理临时文件
-		rm ./fileList.txt
-	fi
-	IFS=$"
-	"
+    # 为了继续entryPaths的循环而设置
+    IFS=$"
+    "
 done
 
 # 恢复IFS的值
