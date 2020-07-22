@@ -1,5 +1,7 @@
 #!/bin/bash
 # bilExport.sh
+# version 1.0.1
+# 修改-h信息
 
 # TODO 提取音频功能
 # 处理选项参数
@@ -13,8 +15,8 @@ function usage() {
     echo "         例: $0 -i 88888"
     echo "         例2:$0 -i 84745697,90424787"
     echo "    -y 自动确认覆盖生成过的文件(重复生成可能会用)"
-    echo "    -s 指定分辨率"
-    echo "         例：$0 -s 320x240"
+    echo "    -s 指定分辨率,需要同时设置-c"
+    echo "         例：$0 -c h264 -s 320x240"
     echo "    -c 指定视频编解码器"
     echo "         例：$0 -c h264"
     echo "    -f 指定输出格式,默认mp4"
@@ -29,7 +31,7 @@ do
         exit 0
     ;;
     v)
-        echo version: 1.0
+        echo version: 1.0.1
         exit 0
     ;;
     i)
